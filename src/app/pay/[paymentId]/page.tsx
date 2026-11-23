@@ -441,6 +441,8 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
   const [loadError, setLoadError] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState<string | null>(null);
+  /** Screen-reader announcement for the most recent copy attempt. */
+  const [copyAnnouncement, setCopyAnnouncement] = useState<string>('');
   const [pollWarning, setPollWarning] = useState<string>('');
   /** True when consecutive poll failures have crossed the degradation threshold. */
   const [networkDegraded, setNetworkDegraded] = useState(false);
@@ -563,12 +565,26 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
   }, []);
 
   const copy = async (text: string, key: string) => {
+    const label = key === 'address' ? 'Deposit address' : 'Memo';
+    if (!text) {
+      setCopyAnnouncement(`${label} is unavailable to copy.`);
+      return;
+    }
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      setCopyAnnouncement(
+        `Copying is not supported in this browser. Please select the ${label.toLowerCase()} and copy it manually.`
+      );
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
       setCopied(key);
+      setCopyAnnouncement(`${label} copied to clipboard.`);
       setTimeout(() => setCopied((c) => (c === key ? null : c)), 2000);
     } catch {
-      /* clipboard unavailable */
+      setCopyAnnouncement(
+        `Could not copy the ${label.toLowerCase()}. Please select it and copy manually.`
+      );
     }
   };
 
@@ -732,6 +748,9 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
                     {copied === 'address' && (
                       <p className="text-xs text-green-600 mt-1">Copied!</p>
                     )}
+                    <span className="sr-only" role="status" aria-live="polite">
+                      {copyAnnouncement}
+                    </span>
                   </div>
 
                   {payment.stellarMemo && (

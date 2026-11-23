@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { getErrorMessage } from '@/lib/errors';
+import { paymentsApi } from '@/lib/api';
+import type { PaymentStats } from '@/lib/types';
+
+import StatusPieChart from '../analytics/StatusPieChart';
 
 const PAGE_SIZE = 20;
 
@@ -96,6 +100,7 @@ export default function PaymentsList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [stats, setStats] = useState<PaymentStats[]>([]);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -147,6 +152,34 @@ export default function PaymentsList() {
       cancelled = true;
     };
   }, [page, statuses, reference, from, to]);
+
+  // Per-status breakdown for the overview pie chart (#779). Best-effort: the
+  // list still renders if the stats request fails.
+  useEffect(() => {
+    let cancelled = false;
+
+    paymentsApi
+      .stats()
+      .then(({ data }) => {
+        if (!cancelled) setStats(data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setStats([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const statusChartData = useMemo(
+    () =>
+      stats.map((s) => ({
+        name: s.status,
+        value: parseInt(String(s.count), 10) || 0,
+      })),
+    [stats]
+  );
 
   /** Writes the given params to the URL; any filter change resets to page 1. */
   const updateParams = useCallback(
@@ -233,6 +266,35 @@ export default function PaymentsList() {
 
   return (
     <div className="space-y-4">
+      <div className="card p-6" data-testid="payments-status-chart">
+        <h2 className="font-semibold mb-4">Payments by Status</h2>
+        {statusChartData.length > 0 ? (
+          <>
+            <StatusPieChart data={statusChartData} height={250} />
+            {/* Visually-hidden data table — same data as chart for screen readers */}
+            <table className="sr-only">
+              <caption>Payments by Status</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Status</th>
+                  <th scope="col">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statusChartData.map((row) => (
+                  <tr key={row.name}>
+                    <td>{row.name}</td>
+                    <td>{row.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <p className="text-sm text-gray-500">No status data yet.</p>
+        )}
+      </div>
+
       <div
         className="space-y-3 rounded-md border border-gray-200 p-3"
         data-testid="payments-filters"

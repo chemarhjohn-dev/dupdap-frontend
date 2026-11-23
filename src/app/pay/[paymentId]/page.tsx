@@ -17,7 +17,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { paymentsApi } from '@/lib/api';
 import type { Payment } from '@/lib/types';
-import { formatUsd, formatDate } from '@/lib/utils';
+import {
+  formatUsdWithCode,
+  formatXlmEquivalent,
+  formatDate,
+} from '@/lib/utils';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -333,7 +337,10 @@ function Receipt({ payment }: ReceiptProps) {
       'DupDub Payment Receipt',
       '======================',
       `Reference:   ${payment.reference}`,
-      `Amount:      ${formatUsd(payment.amountUsd)}`,
+      `Amount:      ${formatUsdWithCode(payment.amountUsd)}`,
+      payment.amountXlm != null && payment.amountXlm > 0
+        ? `XLM:         ${formatXlmEquivalent(payment.amountXlm)}`
+        : '',
       `Status:      ${payment.status}`,
       payment.description ? `Description: ${payment.description}` : '',
       payment.customerEmail ? `Customer:    ${payment.customerEmail}` : '',
@@ -371,7 +378,12 @@ function Receipt({ payment }: ReceiptProps) {
         <div className="flex justify-between px-4 py-3 bg-white">
           <dt className="text-gray-500">Amount</dt>
           <dd className="font-semibold text-gray-900">
-            {formatUsd(payment.amountUsd)}
+            {formatUsdWithCode(payment.amountUsd)}
+            {payment.amountXlm != null && payment.amountXlm > 0 && (
+              <span className="block text-xs font-normal text-gray-500">
+                {formatXlmEquivalent(payment.amountXlm)}
+              </span>
+            )}
           </dd>
         </div>
         <div className="flex justify-between px-4 py-3 bg-gray-50">
@@ -640,7 +652,7 @@ function PayPageContent({ paymentId }: { paymentId: string }) {
     return (
       <QrSubtree
         stellarUri={stellarUri}
-        amountLabel={formatUsd(payment.amountUsd)}
+        amountLabel={formatUsdWithCode(payment.amountUsd)}
         reference={payment.reference}
       />
     );
@@ -690,8 +702,16 @@ function PayPageContent({ paymentId }: { paymentId: string }) {
           <p className="text-sm text-gray-500 font-medium">DupDub</p>
           {!isSettled && (
             <h1 className="text-3xl font-bold mt-1">
-              {formatUsd(payment.amountUsd)}
+              {formatUsdWithCode(payment.amountUsd)}
             </h1>
+          )}
+          {!isSettled && hasCryptoAmount && payment.amountXlm != null && (
+            <p
+              data-testid="xlm-equivalent"
+              className="text-sm text-gray-600 mt-1"
+            >
+              {formatXlmEquivalent(payment.amountXlm)}
+            </p>
           )}
           {payment.description && (
             <p className="text-sm text-gray-500 mt-1 break-words">

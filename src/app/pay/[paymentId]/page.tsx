@@ -19,6 +19,8 @@ import { paymentsApi } from '@/lib/api';
 import type { Payment } from '@/lib/types';
 import { formatUsd, formatDate } from '@/lib/utils';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   pending: <Clock className="w-8 h-8 text-yellow-500" />,
   confirmed: <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />,
@@ -436,6 +438,39 @@ function Receipt({ payment }: ReceiptProps) {
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function PayPage({ params }: { params: { paymentId: string } }) {
+  return (
+    <ErrorBoundary
+      context={{ paymentId: params.paymentId }}
+      fallback={(reset) => <PayPageErrorFallback onRetry={reset} />}
+    >
+      <PayPageContent paymentId={params.paymentId} />
+    </ErrorBoundary>
+  );
+}
+
+function PayPageErrorFallback({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="card w-full max-w-[92vw] xs:max-w-sm p-6 text-center">
+        <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
+        <h1 className="text-xl font-bold mt-3">Something went wrong</h1>
+        <p className="text-sm text-gray-600 mt-2">
+          We couldn&apos;t display this payment. Your funds are safe — please try
+          again.
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-5 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PayPageContent({ paymentId }: { paymentId: string }) {
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -455,7 +490,7 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
     let cancelled = false;
 
     paymentsApi
-      .getByReference(params.paymentId)
+      .getByReference(paymentId)
       .then(({ data }) => setPayment(data))
       .catch(() => {
         setLoadError(true);
@@ -483,7 +518,7 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
         return;
       }
       paymentsApi
-        .getByReference(params.paymentId)
+        .getByReference(paymentId)
         .then(({ data }) => {
           consecutiveFailures = 0;
           setPollWarning('');
@@ -523,7 +558,7 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
       pollNowRef.current = null;
       if (timeout) clearTimeout(timeout);
     };
-  }, [params.paymentId]);
+  }, [paymentId]);
 
   const explicitExpiresAt = payment?.expiresAt
     ? new Date(payment.expiresAt)
